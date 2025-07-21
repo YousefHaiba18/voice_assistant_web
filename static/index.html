@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Voice Assistant</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      padding: 2em;
+    }
+    button {
+      font-size: 1.3em;
+      padding: 1em 2em;
+      margin-top: 1em;
+    }
+  </style>
+</head>
+<body>
+  <h2>🎙️ Tap to Start / Stop Recording</h2>
+  <button id="recordBtn">▶️ Start Recording</button>
+  <p id="status"></p>
+
+  <script>
+    let isRecording = false;
+    let mediaRecorder;
+    let audioChunks = [];
+    let stream;
+    const recordBtn = document.getElementById("recordBtn");
+    const statusText = document.getElementById("status");
+
+    async function initMic() {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        console.log("Mic access granted");
+        return true;
+      } catch (err) {
+        statusText.textContent = "❌ Microphone permission denied.";
+        console.error("Mic error:", err);
+        return false;
+      }
+    }
+
+    recordBtn.onclick = async () => {
+      if (!isRecording) {
+        const micOk = await initMic();
+        if (!micOk) return;
+
+        statusText.textContent = "🎤 Recording...";
+        mediaRecorder = new MediaRecorder(stream);
+        audioChunks = [];
+        mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+        mediaRecorder.start();
+
+        isRecording = true;
+        recordBtn.textContent = "⏹ Stop Recording";
+      } else {
+        mediaRecorder.stop();
+        statusText.textContent = "⏳ Sending...";
+        isRecording = false;
+        recordBtn.textContent = "▶️ Start Recording";
+
+        mediaRecorder.onstop = async () => {
+          const audioBlob = new Blob(audioChunks, { type: "audio/wav" });
+          const formData = new FormData();
+          formData.append("audio", audioBlob, "recording.wav");
+
+          const response = await fetch("/upload", {
+            method: "POST",
+            body: formData
+          });
+
+          const audioURL = URL.createObjectURL(await response.blob());
+          const audio = new Audio(audioURL);
+          audio.play();
+          statusText.textContent = "✅ Response played.";
+        };
+      }
+    };
+  </script>
+</body>
+</html>
